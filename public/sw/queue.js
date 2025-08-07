@@ -118,7 +118,22 @@
         const all = await idbGetAll();
         const now = Date.now();
         const ready = all.filter(e => e.status === 'pending' && e.coalesceUntil <= now);
-        if (ready.length === 0) break; // drain
+
+        // If nothing is ready but there are pending items, wait until the earliest coalesce time instead of draining
+        if (ready.length === 0) {
+          const pending = all.filter(e => e.status === 'pending');
+          if (pending.length === 0) break; // truly drained
+          const nextAt = Math.min(...pending.map(e => e.coalesceUntil));
+          const delay = Math.max(0, nextAt - now);
+          // Small cap to avoid extremely long waits in edge cases
+          const waitMs = Math.min(delay, 2000);
+          if (waitMs > 0) {
+            await new Promise(res => setTimeout(res, waitMs));
+            continue; // re-check after waiting
+          }
+        }
+
+        // Process latest item first (LIFO across ready items)
         ready.sort((a, b) => b.lastUpdatedAt - a.lastUpdatedAt);
         const item = ready[0];
         item.status = 'processing';
