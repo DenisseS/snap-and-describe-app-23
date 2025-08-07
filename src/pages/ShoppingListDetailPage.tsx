@@ -7,6 +7,7 @@ import BaseEditModal from "@/components/BaseEditModal";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import ProductSearchDropdown from "@/components/ProductSearchDropdown";
 import DragDropShoppingList from "@/components/DragDropShoppingList";
 import { useShoppingListDetail } from "@/hooks/useShoppingListDetail";
@@ -43,11 +44,25 @@ const ShoppingListDetailPage: React.FC = () => {
   const [itemUnit, setItemUnit] = useState("");
   const [itemNotes, setItemNotes] = useState("");
   const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
-  const [selectedProductSlug, setSelectedProductSlug] = useState<string | null>(null);
+const [selectedProductSlug, setSelectedProductSlug] = useState<string | null>(null);
+  const [showSyncModal, setShowSyncModal] = useState(false);
 
   const isLoading = state === DataState.LOADING;
   const isProcessing = state === DataState.PROCESSING;
-  const isEditing = !!editingItem;
+const isEditing = !!editingItem;
+
+  // Check queue pending items on mount and when list changes
+  useEffect(() => {
+    let mounted = true;
+    if (!listId) return;
+    const client = QueueClient.getInstance();
+    client.status(listId).then((status) => {
+      if (!mounted) return;
+      const hasPending = Array.isArray(status?.items) && status.items.length > 0;
+      if (hasPending && !status.processing) setShowSyncModal(true);
+    }).catch(() => {});
+    return () => { mounted = false; };
+  }, [listId]);
 
   const handleProductSelect = (product: ProductSearchResult) => {
     console.log("🛒 ShoppingListDetailPage: Product selected:", product.name);
@@ -153,7 +168,23 @@ const ShoppingListDetailPage: React.FC = () => {
 
   const handleReorder = (itemIds: string[]) => {
     console.log("🛒 ShoppingListDetailPage: Reordering items:", itemIds);
-    reorderItems(itemIds);
+reorderItems(itemIds);
+  };
+
+  const handleStartSync = async () => {
+    try {
+      const token = await sessionService.getAccessToken();
+      if (!token) {
+        console.warn("🛒 ShoppingListDetailPage: Cannot start sync - no token");
+        setShowSyncModal(false);
+        return;
+      }
+      await QueueClient.getInstance().start(token);
+    } catch (e) {
+      console.error("🛒 ShoppingListDetailPage: Error starting queue processing", e);
+    } finally {
+      setShowSyncModal(false);
+    }
   };
 
   const filteredItems = listData?.items || [];
@@ -321,6 +352,24 @@ const ShoppingListDetailPage: React.FC = () => {
               />
             </div>
           </BaseEditModal>
+
+          {/* Confirm start processing modal */}
+          <AlertDialog open={showSyncModal} onOpenChange={setShowSyncModal}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>{t("processPendingTitle", "Procesar cambios pendientes")}</AlertDialogTitle>
+                <AlertDialogDescription>
+                  {t("processPendingDesc", "Tienes cambios pendientes por sincronizar. ¿Quieres subirlos ahora?")}
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>{t("cancel", "Cancelar")}</AlertDialogCancel>
+                <AlertDialogAction onClick={handleStartSync}>
+                  {t("processNow", "Procesar ahora")}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
       </Layout>
     </TooltipProvider>

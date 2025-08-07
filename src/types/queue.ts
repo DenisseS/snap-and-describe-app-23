@@ -1,9 +1,8 @@
 export enum QueueState {
   IDLE = 'idle',
-  COALESCING = 'coalescing',
+  PENDING = 'pending',
   PROCESSING = 'processing',
   ERROR = 'error',
-  DRAINED = 'drained',
 }
 
 export interface QueueItemStatus {
