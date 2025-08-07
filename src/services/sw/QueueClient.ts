@@ -27,14 +27,16 @@ export class QueueClient {
   async enqueue(queueName: string, resourceKey: string, payload: any): Promise<boolean> {
     try {
       const sw = await this.getActiveSW();
-      if (!sw) return false;
+      if (!sw) { console.warn('QueueClient: no active SW'); return false; }
       const channel = new MessageChannel();
       const result = new Promise<boolean>((resolve) => {
         channel.port1.onmessage = (e) => resolve(!!e.data?.ok);
       });
+      console.log('QueueClient: enqueue', { queueName, resourceKey, hasPayload: !!payload });
       sw.postMessage({ type: 'QUEUE_ENQUEUE', queueName, resourceKey, payload }, [channel.port2]);
       return result;
-    } catch {
+    } catch (e) {
+      console.error('QueueClient: enqueue error', e);
       return false;
     }
   }

@@ -184,6 +184,7 @@ self.addEventListener('message', (event) => {
   switch (data.type) {
     case 'QUEUE_ENQUEUE': {
       const { queueName, resourceKey, payload } = data;
+      console.log('SW: QUEUE_ENQUEUE', { queueName, resourceKey, hasPayload: !!payload });
       self.NSQueue.enqueue(queueName, resourceKey, payload).then(() => {
         if (port) port.postMessage({ ok: true });
       });
@@ -191,6 +192,7 @@ self.addEventListener('message', (event) => {
     }
     case 'QUEUE_STATUS': {
       const { resourceKey } = data;
+      console.log('SW: QUEUE_STATUS', { resourceKey });
       self.NSQueue.status(resourceKey).then((status) => {
         if (port) port.postMessage({ ok: true, status });
       });
@@ -198,24 +200,28 @@ self.addEventListener('message', (event) => {
     }
     case 'QUEUE_START': {
       const { access_token } = data;
+      console.log('SW: QUEUE_START received, token?', !!access_token);
       self.NSQueue.setToken(access_token || null);
       self.NSQueue.start();
       if (port) port.postMessage({ ok: true });
       break;
     }
     case 'QUEUE_STOP': {
+      console.log('SW: QUEUE_STOP');
       self.NSQueue.stop();
       if (port) port.postMessage({ ok: true });
       break;
     }
     case 'QUEUE_PURGE_RESOURCE': {
       const { queueName, resourceKey } = data;
+      console.log('SW: QUEUE_PURGE_RESOURCE', { queueName, resourceKey });
       self.NSQueue.purgeResource(queueName, resourceKey).then(() => {
         if (port) port.postMessage({ ok: true });
       });
       break;
     }
     case 'QUEUE_CLEAR_ALL': {
+      console.log('SW: QUEUE_CLEAR_ALL');
       self.NSQueue.clearAll().then(() => {
         if (port) port.postMessage({ ok: true });
       });

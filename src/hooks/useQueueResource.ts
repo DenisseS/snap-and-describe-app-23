@@ -27,6 +27,7 @@ export const useQueueResource = (queueName: string, resourceKey: string) => {
       const data = evt.data;
       if (data.queueName && data.queueName !== queueName) return;
       if (data.resourceKey && data.resourceKey !== resourceKey) return;
+      console.log('useQueueResource: event', data);
       switch (data.event) {
         case 'ready':
           setState(QueueState.PENDING);

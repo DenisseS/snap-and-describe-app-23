@@ -86,12 +86,19 @@
       coalesceUntil,
       status: 'pending', // pending | processing | error
     };
+    console.log('SW Queue: enqueue', { queueName, resourceKey, lastUpdatedAt: now });
     await idbPut(entry);
     // reset coalescing timer
     if (COALESCE_TIMERS.has(id)) clearTimeout(COALESCE_TIMERS.get(id));
     const t = setTimeout(() => {
+      console.log('SW Queue: coalesce window ended', { queueName, resourceKey });
       postToAllClients({ event: 'ready', queueName, resourceKey });
       COALESCE_TIMERS.delete(id);
+      // If we already have a token and we're not processing, kick the loop
+      if (TOKEN && !PROCESSING) {
+        console.log('SW Queue: auto-starting loop after coalesce (token present)');
+        start();
+      }
     }, QUEUE_COALESCE_MS);
     COALESCE_TIMERS.set(id, t);
     return true;
@@ -101,7 +108,9 @@
     const all = await idbGetAll();
     const items = all.map((e) => ({ id: e.id, queueName: e.queueName, resourceKey: e.resourceKey, status: e.status, lastUpdatedAt: e.lastUpdatedAt, coalesceUntil: e.coalesceUntil }));
     const byResource = resourceKey ? items.filter(i => i.resourceKey === resourceKey) : items;
-    return { processing: PROCESSING, items: byResource };
+    const snapshot = { processing: PROCESSING, items: byResource };
+    console.log('SW Queue: status requested', snapshot);
+    return snapshot;
   }
 
   async function processLoop() {
@@ -125,8 +134,8 @@
           if (pending.length === 0) break; // truly drained
           const nextAt = Math.min(...pending.map(e => e.coalesceUntil));
           const delay = Math.max(0, nextAt - now);
-          // Small cap to avoid extremely long waits in edge cases
           const waitMs = Math.min(delay, 2000);
+          console.log('SW Queue: waiting for coalesce', { waitMs, pending: pending.length });
           if (waitMs > 0) {
             await new Promise(res => setTimeout(res, waitMs));
             continue; // re-check after waiting
@@ -136,6 +145,7 @@
         // Process latest item first (LIFO across ready items)
         ready.sort((a, b) => b.lastUpdatedAt - a.lastUpdatedAt);
         const item = ready[0];
+        console.log('SW Queue: processing item', { queueName: item.queueName, resourceKey: item.resourceKey });
         item.status = 'processing';
         await idbPut(item);
         await postToAllClients({ event: 'processing', queueName: item.queueName, resourceKey: item.resourceKey });
@@ -154,6 +164,7 @@
         }
 
         if (!ok) {
+          console.warn('SW Queue: item failed', { queueName: item.queueName, resourceKey: item.resourceKey });
           item.status = 'error';
           await idbPut(item);
           await postToAllClients({ event: 'error', queueName: item.queueName, resourceKey: item.resourceKey });
@@ -165,6 +176,7 @@
       }
     } finally {
       const drained = (await idbGetAll()).filter(e => e.status === 'pending').length === 0;
+      console.log('SW Queue: loop finished', { drained });
       PROCESSING = false;
       TOKEN = null; // clear token aggressively
       STOP_REQUESTED = false;
@@ -172,12 +184,27 @@
     }
   }
 
-  function setToken(token) { TOKEN = token || null; }
-  function start() { return processLoop(); }
-  function stop() { STOP_REQUESTED = true; TOKEN = null; }
+  function setToken(token) { 
+    TOKEN = token || null; 
+    console.log('SW Queue: setToken', { present: !!TOKEN });
+  }
+  function start() { 
+    console.log('SW Queue: start called, processing=', PROCESSING);
+    return processLoop(); 
+  }
+  function stop() { 
+    console.log('SW Queue: stop requested');
+    STOP_REQUESTED = true; TOKEN = null; 
+  }
 
-  function registerProcessor(queueName, fn) { PROCESSORS.set(queueName, fn); }
-  function purgeResource(queueName, resourceKey) { return idbDelete(makeKey(queueName, resourceKey)); }
+  function registerProcessor(queueName, fn) { 
+    console.log('SW Queue: registerProcessor', queueName);
+    PROCESSORS.set(queueName, fn); 
+  }
+  function purgeResource(queueName, resourceKey) { 
+    console.log('SW Queue: purgeResource', { queueName, resourceKey });
+    return idbDelete(makeKey(queueName, resourceKey)); 
+  }
 
   // Expose API
   self.NSQueue = {
