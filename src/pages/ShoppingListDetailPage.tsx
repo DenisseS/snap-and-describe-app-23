@@ -187,6 +187,16 @@ reorderItems(itemIds);
     }
   };
 
+  const handleCancelSync = async () => {
+    try {
+      if (!listId) return;
+      await QueueClient.getInstance().purgeResource('shopping-lists', listId);
+    } catch (e) {
+      console.error("🛒 ShoppingListDetailPage: Error purging queue for list", e);
+    } finally {
+      setShowSyncModal(false);
+    }
+  };
   const filteredItems = listData?.items || [];
   const pendingItems = filteredItems.filter(item => !item.purchased);
   const completedItems = filteredItems.filter(item => item.purchased);
@@ -363,7 +373,7 @@ reorderItems(itemIds);
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
-                <AlertDialogCancel>{t("cancel", "Cancelar")}</AlertDialogCancel>
+                <AlertDialogCancel onClick={handleCancelSync}>{t("cancel", "Cancelar")}</AlertDialogCancel>
                 <AlertDialogAction onClick={handleStartSync}>
                   {t("processNow", "Procesar ahora")}
                 </AlertDialogAction>

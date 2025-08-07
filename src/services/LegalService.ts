@@ -2,7 +2,8 @@ import { LegalPage } from '@/types/legal';
 
 // Import all markdown files from the legal directory with language support
 const legalFiles = import.meta.glob('../data/legal/**/*.md', { 
-  as: 'raw',
+  query: '?raw',
+  import: 'default',
   eager: true 
 });
 
@@ -64,7 +65,7 @@ class LegalService {
     Object.entries(legalFiles).forEach(([path, content]) => {
       const language = this.getLanguageFromPath(path);
       const slug = this.getSlugFromPath(path);
-      const { metadata, content: markdownContent } = this.parseFrontMatter(content);
+      const { metadata, content: markdownContent } = this.parseFrontMatter(content as string);
       
       const page: LegalPage = {
         slug,

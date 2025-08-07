@@ -2,7 +2,8 @@ import { BlogPost } from '@/types/blog';
 
 // Import all markdown files from the blog directory with language support
 const blogFiles = import.meta.glob('../data/blog/**/*.md', { 
-  as: 'raw',
+  query: '?raw',
+  import: 'default',
   eager: true 
 });
 
@@ -74,7 +75,7 @@ class BlogService {
     Object.entries(blogFiles).forEach(([path, content]) => {
       const language = this.getLanguageFromPath(path);
       const slug = this.getSlugFromPath(path);
-      const { metadata, content: markdownContent } = this.parseFrontMatter(content);
+      const { metadata, content: markdownContent } = this.parseFrontMatter(content as string);
       
       const post: BlogPost = {
         slug,

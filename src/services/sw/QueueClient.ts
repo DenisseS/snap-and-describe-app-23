@@ -54,6 +54,16 @@ export class QueueClient {
     return !!resp?.ok;
   }
 
+  async purgeResource(queueName: string, resourceKey: string): Promise<boolean> {
+    const resp = await this.request('QUEUE_PURGE_RESOURCE', { queueName, resourceKey });
+    return !!resp?.ok;
+  }
+
+  async clearAll(): Promise<boolean> {
+    const resp = await this.request('QUEUE_CLEAR_ALL');
+    return !!resp?.ok;
+  }
+
   subscribe(callback: (evt: MessageEvent) => void): () => void {
     const handler = (evt: MessageEvent) => {
       if (evt.data && evt.data.type === 'QUEUE_EVENT') callback(evt);
