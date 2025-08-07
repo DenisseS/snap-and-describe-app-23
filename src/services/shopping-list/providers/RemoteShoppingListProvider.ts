@@ -3,6 +3,7 @@ import { ShoppingList, ShoppingListData } from '@/types/shoppingList';
 import SessionService from '@/services/SessionService';
 import { GenericShoppingListProvider } from './GenericShoppingListProvider';
 import { SHOPPING_LIST_CACHE_KEYS } from '@/constants/cacheKeys';
+import { QueueClient } from '@/services/sw/QueueClient';
 
 export class RemoteShoppingListProvider extends GenericShoppingListProvider {
   constructor(sessionService: SessionService) {
@@ -205,8 +206,8 @@ export class RemoteShoppingListProvider extends GenericShoppingListProvider {
     const localKey = `${SHOPPING_LIST_CACHE_KEYS.LOCAL_LIST_DATA_PREFIX}${listId}`;
     this.sessionService.setLocalFile(localKey, data);
 
-    // 2. Background sync fire-and-forget
-    this.sessionService.updateFile(`${SHOPPING_LIST_CACHE_KEYS.REMOTE_LIST_PREFIX}${listId}.json`, data);
+    // 2. Enqueue to Service Worker generic queue (fire-and-forget)
+    QueueClient.getInstance().enqueue('shopping-lists', listId, data);
   }
 
   protected async deleteListData(listId: string): Promise<void> {

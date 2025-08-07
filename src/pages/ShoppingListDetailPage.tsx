@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { CheckCircle2, ShoppingCart } from "lucide-react";
@@ -13,6 +13,10 @@ import { useShoppingListDetail } from "@/hooks/useShoppingListDetail";
 import { useNavigation } from "@/hooks/useNavigation";
 import { DataState } from "@/types/userData";
 import SyncStatusIndicator from "@/components/SyncStatusIndicator";
+import { useQueueResource } from "@/hooks/useQueueResource";
+import { QueueState } from "@/types/queue";
+import { useAuthentication } from "@/hooks/useAuthentication";
+import { QueueClient } from "@/services/sw/QueueClient";
 
 interface ProductSearchResult {
   id: string;
@@ -28,6 +32,9 @@ const ShoppingListDetailPage: React.FC = () => {
   const { t } = useTranslation();
   const { navigateToProduct } = useNavigation();
   const { listData, state, isSyncing, addItem, toggleItem, removeItem, updateItem, reorderItems } = useShoppingListDetail(listId!);
+  const { state: queueState } = useQueueResource('shopping-lists', listId!);
+  const isSWProcessing = queueState === QueueState.PROCESSING;
+  const { sessionService } = useAuthentication();
 
   const [showItemModal, setShowItemModal] = useState(false);
   const [editingItem, setEditingItem] = useState<any>(null);
@@ -184,7 +191,7 @@ const ShoppingListDetailPage: React.FC = () => {
               </div>
 
               {/* Sync Status Indicator - Reserved space */}
-              <SyncStatusIndicator isSyncing={isSyncing} className="mb-4" />
+              <SyncStatusIndicator isSyncing={isSyncing || isSWProcessing} className="mb-4" />
 
               {/* Loading state */}
               {isLoading && (

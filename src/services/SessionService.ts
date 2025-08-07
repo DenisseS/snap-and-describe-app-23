@@ -276,6 +276,11 @@ class SessionService {
     return this.tokenManager.hasToken();
   }
 
+  // Expose a method to obtain a fresh access token (no refresh token exposure)
+  async getAccessToken (): Promise<string | null> {
+    return this.ensureValidToken();
+  }
+
   // Logout
   logout (): void {
     this.tokenManager.clearToken();
