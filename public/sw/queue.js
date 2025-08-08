@@ -54,6 +54,16 @@
     });
   }
 
+  async function idbGet(id) {
+    const db = await openDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(IDB_STORE, 'readonly');
+      const req = tx.objectStore(IDB_STORE).get(id);
+      req.onsuccess = () => resolve(req.result || null);
+      req.onerror = () => reject(req.error);
+    });
+  }
+
   async function idbDelete(id) {
     const db = await openDB();
     return new Promise((resolve, reject) => {
@@ -167,7 +177,14 @@
           break;
         }
 
-        await idbDelete(item.id);
+        // Check if item was updated while processing; if so, keep latest pending
+        const latest = await idbGet(item.id);
+        if (latest && (latest.lastUpdatedAt > item.lastUpdatedAt) && latest.status === 'pending') {
+          console.log('SW Queue: newer pending detected, keeping for reprocess', { id: item.id, lastProcessedAt: item.lastUpdatedAt, latestAt: latest.lastUpdatedAt });
+          // Do NOT delete; loop will pick it up in the next iteration
+        } else {
+          await idbDelete(item.id);
+        }
         await postToAllClients({ event: 'processed', queueName: item.queueName, resourceKey: item.resourceKey });
       }
     } finally {

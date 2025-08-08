@@ -8,6 +8,7 @@ import { AuthState } from '../types/auth';
 import { useUserCache } from '../hooks/useUserCache';
 import { useTranslation } from 'react-i18next';
 import { getAuthRedirectUri } from '@/utils/envConfig';
+import { QueueClient } from '@/services/sw/QueueClient';
 
 interface AuthContextType {
   // Estado centralizado - AuthState como única fuente de verdad
@@ -154,6 +155,25 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     console.log('🔐 Auth: Initializing authentication state...');
     refreshUserInfo();
   }, [refreshUserInfo]);
+
+  // Bootstrap SW Queue token as soon as user is authenticated
+  useEffect(() => {
+    (async () => {
+      if (authState === AuthState.AUTHENTICATED) {
+        try {
+          const token = await sessionService.getAccessToken();
+          if (token) {
+            console.log('🔐 Auth: Bootstrapping SW Queue with access token');
+            await QueueClient.getInstance().start(token);
+          } else {
+            console.log('🔐 Auth: No token available to bootstrap SW Queue');
+          }
+        } catch (e) {
+          console.error('🔐 Auth: Error bootstrapping SW Queue', e);
+        }
+      }
+    })();
+  }, [authState]);
 
   const contextValue: AuthContextType = {
     // Estado centralizado - solo AuthState como fuente de verdad
