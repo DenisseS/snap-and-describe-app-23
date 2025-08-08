@@ -2,7 +2,7 @@
 // Exposes global NSQueue on the Service Worker scope
 
 (function(){
-  const QUEUE_COALESCE_MS = 300;
+  const QUEUE_COALESCE_MS = 0;
   const IDB_NAME = 'NS_QUEUE';
   const IDB_STORE = 'events';
 
@@ -76,7 +76,7 @@
   async function enqueue(queueName, resourceKey, payload) {
     const id = makeKey(queueName, resourceKey);
     const now = Date.now();
-    const coalesceUntil = now + QUEUE_COALESCE_MS;
+    const coalesceUntil = now; // process immediately, no coalescing window
     const entry = {
       id,
       queueName,
@@ -88,19 +88,15 @@
     };
     console.log('SW Queue: enqueue', { queueName, resourceKey, lastUpdatedAt: now });
     await idbPut(entry);
-    // reset coalescing timer
-    if (COALESCE_TIMERS.has(id)) clearTimeout(COALESCE_TIMERS.get(id));
-    const t = setTimeout(() => {
-      console.log('SW Queue: coalesce window ended', { queueName, resourceKey });
-      postToAllClients({ event: 'ready', queueName, resourceKey });
-      COALESCE_TIMERS.delete(id);
-      // If we already have a token and we're not processing, kick the loop
-      if (TOKEN && !PROCESSING) {
-        console.log('SW Queue: auto-starting loop after coalesce (token present)');
-        start();
-      }
-    }, QUEUE_COALESCE_MS);
-    COALESCE_TIMERS.set(id, t);
+
+    // Notify clients immediately and auto-start if we have a token
+    postToAllClients({ event: 'ready', queueName, resourceKey });
+
+    // If we already have a token and we're not processing, kick the loop right away
+    if (TOKEN && !PROCESSING) {
+      console.log('SW Queue: auto-starting loop after enqueue (token present)');
+      start();
+    }
     return true;
   }
 
@@ -178,7 +174,7 @@
       const drained = (await idbGetAll()).filter(e => e.status === 'pending').length === 0;
       console.log('SW Queue: loop finished', { drained });
       PROCESSING = false;
-      TOKEN = null; // clear token aggressively
+      // Keep token to allow real-time processing of subsequent enqueues
       STOP_REQUESTED = false;
       await postToAllClients({ event: drained ? 'drained' : 'stopped' });
     }

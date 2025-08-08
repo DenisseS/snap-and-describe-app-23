@@ -189,10 +189,9 @@ reorderItems(itemIds);
 
   const handleCancelSync = async () => {
     try {
-      if (!listId) return;
-      await QueueClient.getInstance().purgeResource('shopping-lists', listId);
+      await QueueClient.getInstance().clearAll();
     } catch (e) {
-      console.error("🛒 ShoppingListDetailPage: Error purging queue for list", e);
+      console.error("🛒 ShoppingListDetailPage: Error clearing entire queue", e);
     } finally {
       setShowSyncModal(false);
     }
