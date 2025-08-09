@@ -180,12 +180,23 @@ export class RemoteShoppingListProvider extends GenericShoppingListProvider {
       if (result.syncHandler) {
         result.syncHandler(
           (updatedData) => {
-            console.log(`🛒 RemoteProvider: List ${listId} updated from remote sync`);
-            // Actualizar cache local
+            // Conflict resolution: only apply remote if it's newer than local
             const localKey = `${SHOPPING_LIST_CACHE_KEYS.LOCAL_LIST_DATA_PREFIX}${listId}`;
-            this.sessionService.setLocalFile(localKey, updatedData);
-            // Notificar a la UI
-            onUpdate(updatedData);
+            const local = this.sessionService.getLocalFile(localKey) as ShoppingListData | null;
+            const localTs = local?.updatedAt ? new Date(local.updatedAt).getTime() : 0;
+            const remoteTs = updatedData?.updatedAt ? new Date(updatedData.updatedAt).getTime() : 0;
+
+            if (remoteTs > localTs) {
+              console.log(`🛒 RemoteProvider: List ${listId} updated from remote sync (remote newer)`);
+              this.sessionService.setLocalFile(localKey, updatedData);
+              onUpdate(updatedData);
+            } else {
+              console.log(`🛒 RemoteProvider: Local data newer for ${listId} (keeping local, re-enqueue upload)`);
+              // Re-enqueue current local to ensure remote eventually matches local
+              if (local) {
+                this.saveListData(listId, local);
+              }
+            }
           },
           onSyncStatusChange
         );
